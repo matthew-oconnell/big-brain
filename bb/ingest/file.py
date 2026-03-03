@@ -27,6 +27,8 @@ _TEXT_SUFFIXES = {
 
 _IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff", ".tif"}
 
+FILE_STORE_MAX = 10 * 1024 * 1024  # 10 MB — store raw bytes for files under this size
+
 _IMAGE_PROMPT = (
     "Describe this image in detail for a personal knowledge base. "
     "Include any visible text, people, objects, colors, setting, and context. "
@@ -80,12 +82,21 @@ def describe_image(path: Path, base_url: str, model: str) -> str:
         )
 
 
-async def import_file(path: Path, pipeline: IngestPipeline, tags: list[str] | None = None) -> list[str]:
+async def import_file(
+    path: Path,
+    pipeline: IngestPipeline,
+    tags: list[str] | None = None,
+    origin_path: str | None = None,
+) -> list[str]:
     """
     Import a single file into the brain.
     - Text files are chunked and embedded directly.
     - Image files are described by llava and the description is indexed.
+      If the file is < FILE_STORE_MAX, raw bytes are also stored so they can be served.
     - Other binary files raise UnsupportedFileType.
+
+    origin_path: override the stored path (useful for web uploads where the real
+    path is a temp dir — pass the original filename instead).
     Returns list of stored chunk IDs.
     """
     path = path.resolve()
@@ -93,6 +104,8 @@ async def import_file(path: Path, pipeline: IngestPipeline, tags: list[str] | No
         raise FileNotFoundError(path)
     if not path.is_file():
         raise ValueError(f"{path} is not a file")
+
+    effective_origin = origin_path or str(path)
 
     if is_image_file(path):
         cfg = pipeline._settings.llm
@@ -104,11 +117,15 @@ async def import_file(path: Path, pipeline: IngestPipeline, tags: list[str] | No
             content=description,
             content_type=ContentType.IMAGE,
             source_node=socket.gethostname(),
-            origin_path=str(path),
+            origin_path=effective_origin,
             tags=tags or [],
             key_path="personal",
         )
-        return await pipeline.ingest(chunk)
+        ids = await pipeline.ingest(chunk)
+        # Store raw bytes so the image can be served and shown as a thumbnail
+        if ids and path.stat().st_size <= FILE_STORE_MAX:
+            await pipeline._blobs.put(f"{ids[0]}.raw", path.read_bytes())
+        return ids
 
     if not is_text_file(path):
         raise UnsupportedFileType(
@@ -124,7 +141,7 @@ async def import_file(path: Path, pipeline: IngestPipeline, tags: list[str] | No
         content=content,
         content_type=detect_content_type(path),
         source_node=socket.gethostname(),
-        origin_path=str(path),
+        origin_path=effective_origin,
         tags=tags or [],
         key_path="personal",
     )

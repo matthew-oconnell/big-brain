@@ -214,6 +214,29 @@ async def digest() -> dict[str, Any]:
     }
 
 
+# ── File serving ──────────────────────────────────────────────────────────────
+
+@app.get("/file/{chunk_id}")
+async def serve_file(chunk_id: str):
+    """Serve raw file bytes stored during import (images < 10 MB)."""
+    import mimetypes
+    from fastapi.responses import Response
+
+    pipeline = get_pipeline()
+    try:
+        data = await pipeline._blobs.get(f"{chunk_id}.raw")
+    except KeyError:
+        raise HTTPException(status_code=404, detail="No raw file stored for this chunk")
+
+    record = pipeline._meta.get(chunk_id)
+    mime = "application/octet-stream"
+    if record and record.origin_path:
+        guessed, _ = mimetypes.guess_type(record.origin_path)
+        if guessed:
+            mime = guessed
+    return Response(content=data, media_type=mime)
+
+
 # ── Health ────────────────────────────────────────────────────────────────────
 
 @app.get("/health")

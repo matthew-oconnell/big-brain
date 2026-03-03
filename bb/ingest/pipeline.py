@@ -135,5 +135,6 @@ class IngestPipeline:
                     "content": record.content,
                     "activity_summary": record.activity_summary,
                     "working_directory": record.working_directory,
+                    "source_node": record.source_node,
                 })
         return enriched

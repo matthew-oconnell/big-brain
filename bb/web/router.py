@@ -42,12 +42,14 @@ def _enrich_records(raw: list[dict]) -> list[dict]:
         if record:
             preview = (record.activity_summary or record.content[:250]).replace("\n", " ")
             out.append({
+                "id": r["id"],
                 "content_type": r["content_type"],
                 "color": TYPE_COLORS.get(r["content_type"], "#8b949e"),
                 "timestamp": r.get("timestamp", "")[:16].replace("T", " "),
                 "preview": preview,
                 "working_directory": record.working_directory,
                 "origin_path": record.origin_path,
+                "source_node": record.source_node,
                 "score": None,
             })
     return out
@@ -88,12 +90,14 @@ async def web_search(request: Request, q: str = ""):
     for r in raw:
         preview = (r.get("activity_summary") or r.get("content", "")[:250]).replace("\n", " ")
         results.append({
+            "id": r["id"],
             "content_type": r["content_type"],
             "color": TYPE_COLORS.get(r["content_type"], "#8b949e"),
             "timestamp": r.get("timestamp", "")[:16].replace("T", " "),
             "preview": preview,
             "working_directory": r.get("working_directory"),
             "origin_path": r.get("origin_path") or None,
+            "source_node": r.get("source_node", ""),
             "score": f"{max(0.0, 1.0 - r.get('_distance', 0.0) / 2.0):.0%}",
         })
     return templates.TemplateResponse("partials/results.html", {
@@ -146,7 +150,7 @@ async def web_upload(file: UploadFile = File(...)):
         tmp_path = Path(tmpdir) / original_name
         tmp_path.write_bytes(content)
         try:
-            ids = await import_file(tmp_path, _pipeline())
+            ids = await import_file(tmp_path, _pipeline(), origin_path=original_name)
             return JSONResponse({"stored": len(ids), "filename": original_name, "chunks": len(ids)})
         except UnsupportedFileType as e:
             return JSONResponse({"stored": 0, "filename": original_name, "chunks": 0, "error": str(e)}, status_code=415)

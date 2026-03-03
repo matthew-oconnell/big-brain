@@ -93,11 +93,16 @@
       {% endif %}
     </div>
     <div class="result-preview">{{ r.preview }}</div>
+    {% if r.content_type == "image" and r.id %}
+      <img src="/file/{{ r.id }}" loading="lazy"
+           style="max-width:100%; max-height:160px; border-radius:4px; margin:8px 0; display:block; object-fit:contain;"
+           onerror="this.style.display='none'">
+    {% endif %}
     {% if r.working_directory %}
       <div class="result-path">📁 {{ r.working_directory }}</div>
     {% endif %}
-    {% if r.origin_path and not r.working_directory %}
-      <div class="result-path">📄 {{ r.origin_path }}</div>
+    {% if r.origin_path %}
+      <div class="result-path">📄 {% if r.source_node %}{{ r.source_node }} — {% endif %}{{ r.origin_path }}</div>
     {% endif %}
   </div>
   {% endfor %}
