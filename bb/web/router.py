@@ -38,13 +38,18 @@ def _enrich_records(raw: list[dict]) -> list[dict]:
     pipeline = _pipeline()
     out = []
     for r in raw:
-        record = pipeline._meta.get(r["id"])
+        # Ensure we have an ID
+        vid = r.get("id") or r.get("_id")
+        if not vid:
+            continue
+            
+        record = pipeline._meta.get(vid)
         if record:
             preview = (record.activity_summary or record.content[:250]).replace("\n", " ")
             out.append({
-                "id": r["id"],
-                "content_type": r["content_type"],
-                "color": TYPE_COLORS.get(r["content_type"], "#8b949e"),
+                "id": vid,
+                "content_type": r.get("content_type") or record.content_type,
+                "color": TYPE_COLORS.get(r.get("content_type") or record.content_type, "#8b949e"),
                 "timestamp": r.get("timestamp", "")[:16].replace("T", " "),
                 "preview": preview,
                 "working_directory": record.working_directory,
@@ -134,6 +139,93 @@ async def web_add_thought(
         "request": request,
         "stored": len(ids),
         "preview": content[:80],
+    })
+
+
+@router.get("/web/test", response_class=HTMLResponse)
+async def web_test(request: Request):
+    """Simple test endpoint to verify routing works."""
+    return "<h1>Router is working!</h1>"
+
+
+@router.get("/web/debug/entries")
+async def debug_entries():
+    """Debug endpoint to see what's in the database."""
+    pipeline = _pipeline()
+    # Get recent from vector store
+    vector_recent = pipeline._vector.recent(5)
+    
+    # Try to look up each one in meta store
+    details = []
+    for v in vector_recent:
+        vid = v.get("id")
+        meta = pipeline._meta.get(vid) if vid else None
+        details.append({
+            "vector_id": vid,
+            "vector_fields": list(v.keys()),
+            "meta_found": meta is not None,
+            "meta_id": str(meta.id) if meta else None,
+        })
+    
+    return {"total": len(vector_recent), "samples": details}
+
+
+@router.get("/web/detail/{chunk_id}", response_class=HTMLResponse)
+async def web_detail(request: Request, chunk_id: str):
+    """Fetch full chunk details for a modal view."""
+    import json
+    import logging
+    
+    logger = logging.getLogger(__name__)
+    pipeline = _pipeline()
+    
+    # Try to get the record
+    record = pipeline._meta.get(chunk_id)
+    logger.info(f"Detail lookup: chunk_id={chunk_id}, found={record is not None}")
+    
+    if not record:
+        # Try URL-decoded version in case there's encoding issue
+        from urllib.parse import unquote
+        chunk_id_decoded = unquote(chunk_id)
+        if chunk_id_decoded != chunk_id:
+            record = pipeline._meta.get(chunk_id_decoded)
+            logger.info(f"Retry with decoded: chunk_id={chunk_id_decoded}, found={record is not None}")
+        
+        if not record:
+            # Return 200 with error template (don't use 404 as it overrides the response)
+            return templates.TemplateResponse("partials/detail.html", {
+                "request": request,
+                "found": False,
+                "error": f"Entry not found",
+            })
+    
+    # Parse JSON fields
+    try:
+        tags = json.loads(record.tags) if record.tags else []
+    except (json.JSONDecodeError, TypeError):
+        tags = []
+    
+    try:
+        activity_tags = json.loads(record.activity_tags) if record.activity_tags else []
+    except (json.JSONDecodeError, TypeError):
+        activity_tags = []
+    
+    return templates.TemplateResponse("partials/detail.html", {
+        "request": request,
+        "found": True,
+        "chunk_id": chunk_id,
+        "content": record.content,
+        "content_type": record.content_type,
+        "timestamp": record.timestamp.isoformat(),
+        "timestamp_display": record.timestamp.strftime("%Y-%m-%d %H:%M"),
+        "source_node": record.source_node,
+        "origin_path": record.origin_path,
+        "working_directory": record.working_directory,
+        "tags": tags,
+        "activity_summary": record.activity_summary,
+        "activity_tags": activity_tags,
+        "exit_code": record.exit_code,
+        "color": TYPE_COLORS.get(record.content_type, "#8b949e"),
     })
 
 

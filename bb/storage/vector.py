@@ -92,9 +92,23 @@ class VectorStore:
         return len(results) > 0
 
     def recent(self, limit: int = 20) -> list[dict]:
-        return (
-            self._get_table()
-            .search()
-            .limit(limit)
-            .to_list()
-        )
+        """Get recent entries ordered by timestamp (most recent first)."""
+        table = self._get_table()
+        try:
+            # Use to_arrow() to convert to PyArrow table (doesn't require pandas)
+            arrow_table = table.to_arrow()
+            # Convert to list of dicts
+            all_rows = arrow_table.to_pylist()
+            # Sort by timestamp descending (most recent first)
+            all_rows.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+            return all_rows[:limit]
+        except Exception:
+            # If that fails, try using head() and limit locally
+            try:
+                all_rows = table.head(1000).to_pylist() if hasattr(table.head(1000), 'to_pylist') else []
+                if all_rows:
+                    all_rows.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+                    return all_rows[:limit]
+            except Exception:
+                pass
+            return []

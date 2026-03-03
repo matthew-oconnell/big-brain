@@ -67,6 +67,17 @@ from bb.web.router import router as web_router  # noqa: E402
 app.include_router(web_router)
 
 
+@app.get("/debug/routes")
+async def debug_routes():
+    """List all registered routes."""
+    routes = []
+    for route in app.routes:
+        if hasattr(route, 'path'):
+            methods = getattr(route, 'methods', ['N/A'])
+            routes.append({"path": route.path, "methods": list(methods) if methods else ['N/A']})
+    return {"total_routes": len(routes), "routes": routes}
+
+
 # ── Request / Response models ─────────────────────────────────────────────────
 
 class TerminalIngestRequest(BaseModel):

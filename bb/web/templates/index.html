@@ -198,6 +198,29 @@
 
     /* ── Results ── */
     #results-area { min-height: 60px; }
+
+    /* ── Detail Modal ── */
+    .detail-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+
+    .detail-modal.hidden {
+      display: none;
+    }
+
+    #detail-container {
+      width: 100%;
+    }
   </style>
 </head>
 <body>
@@ -273,9 +296,69 @@
     {% include "partials/results.html" %}
   </div>
 
+  <!-- Detail Modal -->
+  <div id="detail-modal" class="detail-modal hidden">
+    <div id="detail-container"></div>
+  </div>
+
 </div>
 
 <script>
+// ── Detail modal management ──────────────────────────────────────────────────
+const detailModal = document.getElementById('detail-modal');
+const detailContainer = document.getElementById('detail-container');
+
+async function openDetail(chunkId) {
+  console.log('Opening detail for:', chunkId);
+  
+  if (!chunkId || chunkId === 'None' || chunkId === '') {
+    console.error('Invalid chunk ID:', chunkId);
+    detailContainer.innerHTML = '<div class="detail-content" style="margin: auto;"><div class="error-state"><p>❌ Invalid entry ID</p></div></div>';
+    detailModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+    return;
+  }
+  
+  try {
+    const response = await fetch(`/web/detail/${encodeURIComponent(chunkId)}`);
+    const html = await response.text();
+    
+    if (!response.ok) {
+      console.error('Failed to fetch detail:', response.status, html);
+    }
+    
+    detailContainer.innerHTML = html;
+    detailModal.classList.remove('hidden');
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden';
+  } catch (err) {
+    console.error('Failed to load detail:', err);
+    detailContainer.innerHTML = '<div class="detail-content" style="margin: auto;"><div class="error-state"><p>❌ Failed to load entry details: ' + err.message + '</p></div></div>';
+    detailModal.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+function closeDetail() {
+  detailModal.classList.add('hidden');
+  detailContainer.innerHTML = '';
+  document.body.style.overflow = 'auto';
+}
+
+// Close modal when clicking outside the content
+detailModal.addEventListener('click', (e) => {
+  if (e.target === detailModal) {
+    closeDetail();
+  }
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !detailModal.classList.contains('hidden')) {
+    closeDetail();
+  }
+});
+
 // ── Drag-and-drop file upload ──────────────────────────────────────────────
 const dropzone  = document.getElementById('dropzone');
 const fileInput = document.getElementById('fileInput');
