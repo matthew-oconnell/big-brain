@@ -90,3 +90,16 @@ class MetaStore:
                     select(ChunkRecord).where(ChunkRecord.context_estimated_at == None)  # noqa: E711
                 ).all()
             )
+
+    def today(self) -> list[ChunkRecord]:
+        """Return all chunks created since midnight UTC today."""
+        today_start = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        with Session(self._engine) as session:
+            return list(
+                session.exec(
+                    select(ChunkRecord).where(ChunkRecord.timestamp >= today_start)
+                    .order_by(ChunkRecord.timestamp.desc())  # type: ignore[arg-type]
+                ).all()
+            )
