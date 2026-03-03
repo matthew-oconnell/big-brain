@@ -101,9 +101,9 @@ CFD input files (JSON), Claude/VSCode chat logs, journal entries.
 |---|------|--------|-----------|
 | M0 | Core pipeline — embed, store, search | ✅ Done | `core/`, `storage/`, `ingest/pipeline.py` |
 | M1 | Daemon + shell hook + file watcher | ✅ Done | `api/daemon.py`, `shell/`, `ingest/watcher.py` |
-| M2 | Chat importers — Claude Code, VSCode | ⬜ Next | `ingest/chat/` |
-| M3 | Web UI — search + capture in browser | ⬜ Planned | `bb/web/` (create) |
-| M4 | MCP server — query from Claude | ⬜ Planned | `bb/api/mcp.py` (create) |
+| M2 | Chat importers — Claude Code, VSCode | ✅ Done | `ingest/chat/` |
+| M3 | Web UI — search + capture in browser | ✅ Done | `bb/web/` |
+| M4 | MCP server — query from Claude | ✅ Done | `bb/api/mcp.py` |
 | M5 | Encryption — Argon2 + HKDF key tree | ⬜ Planned | `bb/core/crypto.py` (create) |
 | M6 | Cloud sync — provider-agnostic blobs | ⬜ Planned | `bb/sync/` (create), `bb/storage/blob/<provider>.py` |
 | M7 | Federation — node-to-node sharing | ⬜ Planned | `bb/sync/federation.py` (create) |

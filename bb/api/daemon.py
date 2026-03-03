@@ -201,6 +201,51 @@ async def recent(limit: int = 20, types: str = "") -> list[dict[str, Any]]:
     return out
 
 
+# ── By date / since ───────────────────────────────────────────────────────────
+
+@app.get("/by_date")
+async def by_date(date: str) -> list[dict[str, Any]]:
+    """Return chunks for a specific date (YYYY-MM-DD)."""
+    from datetime import date as date_type
+    try:
+        d = date_type.fromisoformat(date)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="date must be YYYY-MM-DD")
+    pipeline = get_pipeline()
+    records = pipeline._meta.by_date(d)
+    return [
+        {
+            "id": r.id,
+            "content_type": r.content_type,
+            "timestamp": r.timestamp.isoformat(),
+            "preview": (r.activity_summary or r.content[:120]).replace("\n", " "),
+            "working_directory": r.working_directory,
+            "origin_path": r.origin_path,
+        }
+        for r in records
+    ]
+
+
+@app.get("/since")
+async def since(hours: float = 6.0) -> list[dict[str, Any]]:
+    """Return chunks from the last N hours."""
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(hours=hours)
+    pipeline = get_pipeline()
+    records = pipeline._meta.since(cutoff)
+    return [
+        {
+            "id": r.id,
+            "content_type": r.content_type,
+            "timestamp": r.timestamp.isoformat(),
+            "preview": (r.activity_summary or r.content[:120]).replace("\n", " "),
+            "working_directory": r.working_directory,
+            "origin_path": r.origin_path,
+        }
+        for r in records
+    ]
+
+
 # ── Digest ────────────────────────────────────────────────────────────────────
 
 @app.get("/digest")
