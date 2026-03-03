@@ -64,6 +64,7 @@ class VectorStore:
         return (
             self._get_table()
             .search(embedding)
+            .metric("cosine")
             .limit(limit)
             .to_list()
         )
@@ -74,7 +75,7 @@ class VectorStore:
         content_types: list[str] | None = None,
         limit: int = 10,
     ) -> list[dict]:
-        query = self._get_table().search(embedding).limit(limit)
+        query = self._get_table().search(embedding).metric("cosine").limit(limit)
         if content_types:
             types_str = ", ".join(f"'{t}'" for t in content_types)
             query = query.where(f"content_type IN ({types_str})")

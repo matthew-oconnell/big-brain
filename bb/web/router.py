@@ -93,7 +93,7 @@ async def web_search(request: Request, q: str = ""):
             "preview": preview,
             "working_directory": r.get("working_directory"),
             "origin_path": r.get("origin_path") or None,
-            "score": f"{max(0.0, 1 - r.get('_distance', 0)):.0%}",
+            "score": f"{max(0.0, 1.0 - r.get('_distance', 0.0) / 2.0):.0%}",
         })
     return templates.TemplateResponse("partials/results.html", {
         "request": request,

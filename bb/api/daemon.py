@@ -159,7 +159,7 @@ async def search(
             id=r["id"],
             content_type=r["content_type"],
             timestamp=r.get("timestamp", ""),
-            score=max(0.0, 1.0 - r.get("_distance", 0.0)),
+            score=max(0.0, 1.0 - r.get("_distance", 0.0) / 2.0),
             content=r.get("content", ""),
             activity_summary=r.get("activity_summary"),
             working_directory=r.get("working_directory"),
@@ -178,11 +178,13 @@ async def recent(limit: int = 20, types: str = "") -> list[dict[str, Any]]:
     out = []
     for r in results:
         record = pipeline._meta.get(r["id"])
+        if not record:
+            continue  # skip orphaned vector entries with no meta record
         out.append({
             "id": r["id"],
             "content_type": r["content_type"],
             "timestamp": r.get("timestamp", ""),
-            "preview": (record.activity_summary or record.content[:120]).replace("\n", " ") if record else "",
+            "preview": (record.activity_summary or record.content[:120]).replace("\n", " "),
             "origin_path": r.get("origin_path", ""),
         })
     return out
