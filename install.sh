@@ -186,6 +186,17 @@ else
     fi
 fi
 
+# ── MCP server registration ───────────────────────────────────────────────────
+
+heading "Registering MCP server with AI tools"
+
+# Run bb mcp install --client all; it skips clients whose config dirs don't exist
+if "$BB_CMD" mcp install --client all 2>/dev/null; then
+    : # success messages printed by the command
+else
+    warn "MCP registration skipped — run manually after setup: bb mcp install"
+fi
+
 # ── Done ──────────────────────────────────────────────────────────────────────
 
 RC_DISPLAY="${RC_FILE:-your shell rc file}"
@@ -200,6 +211,9 @@ echo "    bb add 'first thought'"
 echo "    bb search 'thought'"
 echo "    bb digest"
 echo "    bb llm test"
+echo ""
+echo "  MCP tools (available in Claude Code, VSCode Copilot, Cursor):"
+echo "    search_brain · add_thought · get_recent_context · get_by_date · get_stats"
 echo ""
 echo "  Config: $CONFIG_FILE"
 echo "  Data:   $DATA_DIR"

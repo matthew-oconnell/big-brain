@@ -103,3 +103,29 @@ class MetaStore:
                     .order_by(ChunkRecord.timestamp.desc())  # type: ignore[arg-type]
                 ).all()
             )
+
+    def by_date(self, date: "date_type") -> list[ChunkRecord]:  # type: ignore[name-defined]
+        """Return all chunks for a specific calendar date (naive comparison)."""
+        from datetime import date as date_type, timedelta
+        day_start = datetime(date.year, date.month, date.day)
+        day_end = day_start + timedelta(days=1)
+        with Session(self._engine) as session:
+            return list(
+                session.exec(
+                    select(ChunkRecord)
+                    .where(ChunkRecord.timestamp >= day_start)
+                    .where(ChunkRecord.timestamp < day_end)
+                    .order_by(ChunkRecord.timestamp.desc())  # type: ignore[arg-type]
+                ).all()
+            )
+
+    def since(self, cutoff: datetime) -> list[ChunkRecord]:
+        """Return all chunks at or after cutoff, most recent first."""
+        with Session(self._engine) as session:
+            return list(
+                session.exec(
+                    select(ChunkRecord)
+                    .where(ChunkRecord.timestamp >= cutoff)
+                    .order_by(ChunkRecord.timestamp.desc())  # type: ignore[arg-type]
+                ).all()
+            )

@@ -186,6 +186,65 @@ def digest() -> None:
         console.print(f"  [dim]{time_str}[/dim]  [cyan]{record.content_type:<12}[/cyan]  {preview}")
 
 
+# ── chat importers ────────────────────────────────────────────────────────────
+
+chat_app = typer.Typer(name="chat", help="Import chat history into your brain.")
+app.add_typer(chat_app)
+
+
+def _parse_since(since: str | None) -> "datetime | None":
+    if since is None:
+        return None
+    from datetime import datetime
+    for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return datetime.strptime(since, fmt)
+        except ValueError:
+            pass
+    err.print(f"[red]Cannot parse date '{since}'. Use YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS[/red]")
+    raise typer.Exit(1)
+
+
+@chat_app.command("import-claude")
+def chat_import_claude(
+    projects_dir: Annotated[Path | None, typer.Option("--projects-dir", help="Claude Code projects root")] = None,
+    since: Annotated[str | None, typer.Option("--since", help="Skip messages before DATE (YYYY-MM-DD)")] = None,
+) -> None:
+    """Import Claude Code conversation history from ~/.claude/projects/."""
+    from bb.ingest.chat.claude_code import import_claude_code
+
+    since_dt = _parse_since(since)
+    pipeline = _pipeline()
+
+    console.print("Scanning Claude Code conversations…")
+    ids = asyncio.run(import_claude_code(pipeline, projects_dir=projects_dir, since=since_dt))
+
+    if ids:
+        console.print(f"[green]Stored[/green] {len(ids)} chunk(s) from Claude Code history")
+    else:
+        console.print("[yellow]Nothing new — all conversations already in brain[/yellow]")
+
+
+@chat_app.command("import-vscode")
+def chat_import_vscode(
+    workspace_storage: Annotated[Path | None, typer.Option("--workspace-storage", help="VSCode workspaceStorage path")] = None,
+    since: Annotated[str | None, typer.Option("--since", help="Skip messages before DATE (YYYY-MM-DD)")] = None,
+) -> None:
+    """Import VSCode Copilot chat history from workspace storage."""
+    from bb.ingest.chat.vscode import import_vscode
+
+    since_dt = _parse_since(since)
+    pipeline = _pipeline()
+
+    console.print("Scanning VSCode chat sessions…")
+    ids = asyncio.run(import_vscode(pipeline, workspace_storage=workspace_storage, since=since_dt))
+
+    if ids:
+        console.print(f"[green]Stored[/green] {len(ids)} chunk(s) from VSCode chat history")
+    else:
+        console.print("[yellow]Nothing new — all chat sessions already in brain[/yellow]")
+
+
 # ── daemon ────────────────────────────────────────────────────────────────────
 
 daemon_app = typer.Typer(name="daemon", help="Manage the bb background daemon.")
@@ -299,6 +358,109 @@ def daemon_logs(
         args.append("-f")
     args.append(str(log))
     subprocess.run(args)
+
+
+# ── mcp ───────────────────────────────────────────────────────────────────────
+
+mcp_app = typer.Typer(name="mcp", help="Manage the big-brain MCP server.")
+app.add_typer(mcp_app)
+
+
+# Map client names to their mcp.json config paths (Linux/macOS)
+_MCP_CLIENT_PATHS: dict[str, list[Path]] = {
+    "claude-code": [Path.home() / ".claude" / "mcp.json"],
+    "vscode": [
+        Path.home() / ".config" / "Code" / "User" / "mcp.json",
+        Path.home() / "Library" / "Application Support" / "Code" / "User" / "mcp.json",
+    ],
+    "vscode-insiders": [
+        Path.home() / ".config" / "Code - Insiders" / "User" / "mcp.json",
+        Path.home() / "Library" / "Application Support" / "Code - Insiders" / "User" / "mcp.json",
+    ],
+    "cursor": [
+        Path.home() / ".config" / "Cursor" / "User" / "mcp.json",
+        Path.home() / "Library" / "Application Support" / "Cursor" / "User" / "mcp.json",
+    ],
+}
+
+
+def _mcp_config_path(client: str) -> Path | None:
+    """Return the existing config dir path for a client, or the first candidate."""
+    candidates = _MCP_CLIENT_PATHS.get(client, [])
+    for p in candidates:
+        if p.parent.exists():
+            return p
+    return candidates[0] if candidates else None
+
+
+def _write_mcp_config(config_path: Path, venv_python: str) -> None:
+    import json
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        config = json.loads(config_path.read_text()) if config_path.exists() else {}
+    except json.JSONDecodeError:
+        config = {}
+    config.setdefault("mcpServers", {})["big-brain"] = {
+        "command": venv_python,
+        "args": ["-m", "bb.api.mcp"],
+        "env": {},
+    }
+    config_path.write_text(json.dumps(config, indent=2) + "\n")
+
+
+@mcp_app.command("install")
+def mcp_install(
+    client: Annotated[str, typer.Option(
+        "--client",
+        help="Client to install for: claude-code, vscode, cursor, all",
+    )] = "all",
+) -> None:
+    """Register the big-brain MCP server with your AI tools.
+
+    Writes (or updates) mcp.json for each detected client so your brain
+    is available as a tool in every conversation.
+
+    Clients: claude-code, vscode, vscode-insiders, cursor, all
+    """
+    import shutil
+
+    venv_python = shutil.which("python3") or sys.executable
+    venv_candidate = Path.home() / ".local/share/bigbrain/venv/bin/python3"
+    if venv_candidate.exists():
+        venv_python = str(venv_candidate)
+
+    targets = list(_MCP_CLIENT_PATHS.keys()) if client == "all" else [client]
+    if client != "all" and client not in _MCP_CLIENT_PATHS:
+        err.print(f"[red]Unknown client '{client}'. Choose: {', '.join(_MCP_CLIENT_PATHS)} or 'all'[/red]")
+        raise typer.Exit(1)
+
+    installed_any = False
+    for target in targets:
+        config_path = _mcp_config_path(target)
+        if config_path is None:
+            continue
+        # For "all", skip clients whose config dir doesn't exist yet
+        if client == "all" and not config_path.parent.exists():
+            continue
+        _write_mcp_config(config_path, venv_python)
+        console.print(f"[green]Installed[/green] {target} → {config_path}")
+        installed_any = True
+
+    if not installed_any:
+        console.print("[yellow]No supported AI clients detected.[/yellow]")
+        console.print("Install Claude Code, VSCode, or Cursor, then re-run.")
+        return
+
+    console.print(f"\n  Python: {venv_python}")
+    console.print("\nRestart your AI tool(s) for the change to take effect.")
+    console.print("Then try: [bold]search_brain('what was I working on yesterday')[/bold]")
+
+
+@mcp_app.command("start")
+def mcp_start() -> None:
+    """Start the MCP server manually (stdio mode — normally Claude Code does this)."""
+    from bb.api.mcp import main
+    main()
 
 
 # ── shell hook path ───────────────────────────────────────────────────────────
