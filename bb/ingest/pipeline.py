@@ -22,6 +22,7 @@ from bb.core.config import Settings
 from bb.core.embedder import embed
 from bb.ingest.chunker import chunk_text
 from bb.llm.base import LLMClient
+from bb.llm.factory import get_llm_client
 from bb.llm.noop import NoopLLM
 from bb.storage.blob.local import LocalBlobStore
 from bb.storage.meta import MetaStore
@@ -38,7 +39,7 @@ class IngestPipeline:
     ) -> None:
         settings.ensure_dirs()
         self._settings = settings
-        self._llm = llm or NoopLLM()
+        self._llm = llm if llm is not None else get_llm_client(settings)
         self._vector = VectorStore(settings.storage.data_dir)
         self._meta = MetaStore(settings.storage.data_dir)
         self._blobs = LocalBlobStore(settings.storage.data_dir / "blobs")

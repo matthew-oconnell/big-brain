@@ -1,0 +1,36 @@
+# big-brain configuration
+# Copy to ~/.config/bigbrain/config.toml and edit as needed.
+
+node_id = "home"   # unique name for this node
+node_name = "Home Machine"
+
+[storage]
+data_dir = "~/.local/share/bigbrain"
+blob_provider = "local"   # local | s3 | r2 | b2
+
+[llm]
+# provider = "noop"       # no context estimation (default, always offline-safe)
+# provider = "ollama"     # local LLM via Ollama — recommended for home machine
+# provider = "anthropic"  # Claude API — requires ANTHROPIC_API_KEY env var
+
+provider = "ollama"
+
+# Anthropic model (used when provider = "anthropic")
+model = "claude-haiku-4-5-20251001"
+
+# Ollama model (used when provider = "ollama")
+# Qwen3-30B-A3B is a MoE model: 30B capacity, ~3B active params during inference.
+# Fast, high quality, runs well on a machine with a decent GPU.
+ollama_model = "alibayram/Qwen3-30B-A3B-Instruct-2507:latest"
+
+# base_url = "http://localhost:11434"   # Ollama server (default)
+
+[daemon]
+host = "127.0.0.1"
+port = 7777
+
+# Directories watched for automatic file ingestion (M1)
+watch_dirs = []
+
+# Key paths that stay on this node — never shared via federation
+private_key_paths = ["work"]

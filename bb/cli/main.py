@@ -159,6 +159,62 @@ def recent(
     console.print(table)
 
 
+# ── llm ──────────────────────────────────────────────────────────────────────
+
+llm_app = typer.Typer(name="llm", help="Manage and test LLM context estimation.")
+app.add_typer(llm_app)
+
+
+@llm_app.command("test")
+def llm_test() -> None:
+    """Verify the configured LLM backend can estimate context."""
+    from bb.core.config import Settings
+    from bb.llm.factory import get_llm_client
+
+    settings = Settings.load()
+    provider = settings.llm.provider
+    console.print(f"Provider: [bold]{provider}[/bold]")
+
+    if provider == "ollama":
+        console.print(f"Model:    [bold]{settings.llm.ollama_model}[/bold]")
+        console.print(f"Base URL: [bold]{settings.llm.base_url or 'http://localhost:11434'}[/bold]")
+    elif provider == "anthropic":
+        console.print(f"Model:    [bold]{settings.llm.model}[/bold]")
+
+    if provider == "noop":
+        console.print("[yellow]Provider is 'noop' — context estimation is disabled.[/yellow]")
+        console.print("Set [bold]provider = 'ollama'[/bold] or [bold]'anthropic'[/bold] in ~/.config/bigbrain/config.toml")
+        return
+
+    sample = (
+        "git commit -m 'fix HKDF key derivation for shared subtrees'\n"
+        "cd ~/Projects/big-brain && python -m pytest tests/"
+    )
+    console.print(f"\nSample content:\n[dim]{sample}[/dim]\n")
+    console.print("Calling LLM…")
+
+    try:
+        client = get_llm_client(settings)
+        result = asyncio.run(client.estimate_context(sample, "terminal"))
+        console.print(f"[green]Summary:[/green]     {result.summary}")
+        console.print(f"[green]Activity tags:[/green] {', '.join(result.activity_tags)}")
+    except Exception as e:
+        err.print(f"[red]Failed:[/red] {e}")
+        raise typer.Exit(1)
+
+
+@llm_app.command("status")
+def llm_status() -> None:
+    """Show current LLM configuration."""
+    from bb.core.config import Settings
+    settings = Settings.load()
+    cfg = settings.llm
+    console.print(f"Provider:      [bold]{cfg.provider}[/bold]")
+    console.print(f"Anthropic model: {cfg.model}")
+    console.print(f"Ollama model:    {cfg.ollama_model}")
+    console.print(f"Ollama base URL: {cfg.base_url or 'http://localhost:11434 (default)'}")
+
+
 # ── daemon ────────────────────────────────────────────────────────────────────
 
 @app.command()

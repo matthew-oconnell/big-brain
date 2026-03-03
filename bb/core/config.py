@@ -17,8 +17,11 @@ class StorageConfig(BaseModel):
 
 class LLMConfig(BaseModel):
     provider: Literal["anthropic", "ollama", "noop"] = "noop"
+    # Anthropic default: cheapest model, fast enough for background tagging
+    # Ollama default: Qwen3 MoE — 30B capacity, ~3B inference cost
     model: str = "claude-haiku-4-5-20251001"
-    base_url: str | None = None  # for ollama
+    ollama_model: str = "alibayram/Qwen3-30B-A3B-Instruct-2507:latest"
+    base_url: str | None = None  # for ollama, defaults to http://localhost:11434
 
 
 class DaemonConfig(BaseModel):
