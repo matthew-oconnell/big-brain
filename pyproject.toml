@@ -14,6 +14,9 @@ dependencies = [
     "typer>=0.15.0",
     "rich>=13.0.0",
     "httpx>=0.28.0",
+    # Web UI
+    "jinja2>=3.1.0",
+    "python-multipart>=0.0.20",
     # Storage
     "lancedb>=0.16.0",
     "sqlmodel>=0.0.22",
@@ -46,6 +49,11 @@ bb = "bb.cli.main:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["bb"]
+artifacts = [
+  "bb/web/templates/**/*.html",
+  "bb/shell/*.bash",
+  "bb/shell/*.zsh",
+]
 
 [tool.ruff]
 line-length = 100

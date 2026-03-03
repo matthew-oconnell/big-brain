@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>big-brain</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4" crossorigin="anonymous"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #0d1117;
+      --surface:      #161b22;
+      --surface2:     #21262d;
+      --border:       #30363d;
+      --border-hover: #484f58;
+      --text:         #e6edf3;
+      --text-muted:   #7d8590;
+      --accent:       #2f81f7;
+      --accent-hover: #388bfd;
+      --success:      #3fb950;
+      --error:        #f85149;
+      --radius:       8px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .app { max-width: 1100px; margin: 0 auto; padding: 0 20px 60px; }
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 24px;
+    }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .logo { font-size: 22px; }
+    .header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
+    .node-badge {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-family: monospace;
+    }
+
+    /* ── Search ── */
+    .search-wrap {
+      position: relative;
+      margin-bottom: 20px;
+    }
+    .search-input {
+      width: 100%;
+      padding: 12px 44px 12px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .search-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(47,129,247,0.15);
+    }
+    .search-input::placeholder { color: var(--text-muted); }
+    .search-spinner {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      font-size: 16px;
+      display: none;
+      animation: spin 0.8s linear infinite;
+    }
+    .htmx-request .search-spinner { display: block; }
+    @keyframes spin { to { transform: translateY(-50%) rotate(360deg); } }
+
+    /* ── Capture grid ── */
+    .capture-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    @media (max-width: 640px) { .capture-grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    /* ── Thought form ── */
+    textarea, input[type="text"], select {
+      width: 100%;
+      padding: 9px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 13px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    textarea { resize: vertical; margin-bottom: 8px; }
+    textarea:focus, input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(47,129,247,0.1);
+    }
+    textarea::placeholder, input::placeholder { color: var(--text-muted); }
+
+    .form-row { display: flex; gap: 8px; margin-bottom: 10px; }
+    .form-row input { flex: 1; }
+    .form-row select { width: auto; flex-shrink: 0; }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 8px 18px;
+      border-radius: var(--radius);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+
+    .btn-link {
+      background: none;
+      border: none;
+      color: var(--accent);
+      cursor: pointer;
+      font-size: 13px;
+      text-decoration: underline;
+      padding: 0;
+    }
+
+    .status-area { min-height: 28px; margin-top: 10px; font-size: 13px; }
+
+    /* ── Dropzone ── */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      min-height: 130px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      padding: 20px;
+    }
+    .dropzone:hover, .dropzone.drag-over {
+      border-color: var(--accent);
+      background: rgba(47,129,247,0.05);
+    }
+    .dropzone p { color: var(--text-muted); font-size: 13px; margin: 4px 0; }
+    .drop-icon { font-size: 26px; margin-bottom: 6px; }
+
+    .upload-log { margin-top: 10px; }
+    .upload-item {
+      font-size: 12px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      margin-bottom: 4px;
+      font-family: monospace;
+    }
+    .upload-item.pending  { color: var(--text-muted); background: var(--surface2); }
+    .upload-item.success  { color: var(--success);    background: rgba(63,185,80,0.08); }
+    .upload-item.dupe     { color: var(--text-muted); background: var(--surface2); }
+    .upload-item.err      { color: var(--error);      background: rgba(248,81,73,0.08); }
+
+    /* ── Results ── */
+    #results-area { min-height: 60px; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <header class="header">
+    <div class="header-left">
+      <span class="logo">🧠</span>
+      <h1>big-brain</h1>
+    </div>
+    <span class="node-badge">{{ node_id }}</span>
+  </header>
+
+  <!-- Search -->
+  <div class="search-wrap">
+    <input
+      class="search-input"
+      type="search"
+      name="q"
+      placeholder="Search your brain by meaning…"
+      hx-get="/web/search"
+      hx-trigger="keyup changed delay:400ms, search"
+      hx-target="#results-area"
+      hx-indicator=".search-spinner"
+      autocomplete="off"
+      autofocus>
+    <span class="search-spinner">↻</span>
+  </div>
+
+  <!-- Capture -->
+  <div class="capture-grid">
+
+    <!-- Add thought -->
+    <div class="card">
+      <div class="card-title">Add Thought</div>
+      <form
+        hx-post="/web/thought"
+        hx-target="#thought-status"
+        hx-swap="innerHTML"
+        hx-on::after-request="this.reset()">
+        <textarea name="content" rows="4" placeholder="What are you thinking?" required></textarea>
+        <div class="form-row">
+          <input type="text" name="tags" placeholder="tags, comma separated">
+          <select name="content_type">
+            <option value="thought">💭 Thought</option>
+            <option value="journal">📓 Journal</option>
+            <option value="note">📝 Note</option>
+          </select>
+        </div>
+        <button type="submit" class="btn-primary">Save</button>
+      </form>
+      <div id="thought-status" class="status-area"></div>
+    </div>
+
+    <!-- Drop files -->
+    <div class="card">
+      <div class="card-title">Import Files</div>
+      <div class="dropzone" id="dropzone">
+        <div>
+          <div class="drop-icon">📄</div>
+          <p>Drop files here</p>
+          <p>or <button class="btn-link" onclick="fileInput.click()">browse</button></p>
+        </div>
+      </div>
+      <input type="file" id="fileInput" multiple style="display:none">
+      <div class="upload-log" id="uploadLog"></div>
+    </div>
+
+  </div>
+
+  <!-- Results / Recent -->
+  <div id="results-area">
+    {% include "partials/results.html" %}
+  </div>
+
+</div>
+
+<script>
+// ── Drag-and-drop file upload ──────────────────────────────────────────────
+const dropzone  = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const uploadLog = document.getElementById('uploadLog');
+
+dropzone.addEventListener('dragover',  e => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', e => { if (!dropzone.contains(e.relatedTarget)) dropzone.classList.remove('drag-over'); });
+dropzone.addEventListener('drop',      e => { e.preventDefault(); dropzone.classList.remove('drag-over'); uploadFiles(e.dataTransfer.files); });
+fileInput.addEventListener('change',   () => { uploadFiles(fileInput.files); fileInput.value = ''; });
+
+async function uploadFiles(files) {
+  for (const file of Array.from(files)) {
+    const item = document.createElement('div');
+    item.className = 'upload-item pending';
+    item.textContent = `⏳ ${file.name}`;
+    uploadLog.prepend(item);
+
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const r    = await fetch('/web/upload', { method: 'POST', body: form });
+      const data = await r.json();
+
+      if (data.error) {
+        item.className   = 'upload-item err';
+        item.textContent = `✗ ${file.name} — ${data.error}`;
+      } else if (data.chunks > 0) {
+        item.className   = 'upload-item success';
+        item.textContent = `✓ ${file.name} — ${data.chunks} chunk(s) stored`;
+      } else {
+        item.className   = 'upload-item dupe';
+        item.textContent = `= ${file.name} — already in brain`;
+      }
+    } catch (err) {
+      item.className   = 'upload-item err';
+      item.textContent = `✗ ${file.name} — ${err.message}`;
+    }
+  }
+}
+</script>
+</body>
+</html>

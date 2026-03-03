@@ -63,6 +63,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="big-brain", lifespan=lifespan)
 
+from bb.web.router import router as web_router  # noqa: E402
+app.include_router(web_router)
+
 
 # ── Request / Response models ─────────────────────────────────────────────────
 
