@@ -9,22 +9,45 @@ from pathlib import Path
 from bb.core.chunk import Chunk, ContentType
 from bb.ingest.pipeline import IngestPipeline
 
+# Extensions and MIME prefixes we can meaningfully index as text
+_TEXT_SUFFIXES = {
+    ".md", ".txt", ".rst", ".org",
+    ".py", ".js", ".ts", ".jsx", ".tsx", ".css", ".html", ".htm",
+    ".json", ".yaml", ".yml", ".toml", ".cfg", ".ini", ".conf", ".env",
+    ".sh", ".bash", ".zsh", ".fish",
+    ".c", ".cpp", ".h", ".hpp", ".rs", ".go", ".java", ".rb", ".php",
+    ".sql", ".graphql", ".proto",
+    ".csv", ".tsv", ".log",
+    ".tex", ".bib",
+    ".xml", ".svg",
+}
+
+
+def is_text_file(path: Path) -> bool:
+    """Return True if the file can be meaningfully indexed as text."""
+    if path.suffix.lower() in _TEXT_SUFFIXES:
+        return True
+    mime, _ = mimetypes.guess_type(str(path))
+    if mime and mime.startswith("text/"):
+        return True
+    return False
+
 
 def detect_content_type(path: Path) -> ContentType:
     suffix = path.suffix.lower()
-    if suffix in {".md", ".txt", ".rst"}:
+    if suffix in {".md", ".txt", ".rst", ".org"}:
         return ContentType.NOTE
-    if suffix in {".json", ".yaml", ".yml", ".toml", ".cfg", ".ini", ".conf"}:
-        return ContentType.FILE
-    mime, _ = mimetypes.guess_type(str(path))
-    if mime and mime.startswith("text/"):
-        return ContentType.FILE
     return ContentType.FILE
+
+
+class UnsupportedFileType(ValueError):
+    pass
 
 
 async def import_file(path: Path, pipeline: IngestPipeline, tags: list[str] | None = None) -> list[str]:
     """
-    Import a single file into the brain.
+    Import a single text file into the brain.
+    Raises UnsupportedFileType for images, binaries, etc.
     Returns list of stored chunk IDs.
     """
     path = path.resolve()
@@ -32,6 +55,12 @@ async def import_file(path: Path, pipeline: IngestPipeline, tags: list[str] | No
         raise FileNotFoundError(path)
     if not path.is_file():
         raise ValueError(f"{path} is not a file")
+
+    if not is_text_file(path):
+        raise UnsupportedFileType(
+            f"'{path.name}' is not a supported text file type. "
+            "big-brain indexes text — images, PDFs, and binaries are not supported yet."
+        )
 
     content = path.read_text(errors="replace")
     if not content.strip():

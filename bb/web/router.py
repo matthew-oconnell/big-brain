@@ -134,7 +134,7 @@ async def web_add_thought(
 
 @router.post("/web/upload")
 async def web_upload(file: UploadFile = File(...)):
-    from bb.ingest.file import import_file
+    from bb.ingest.file import UnsupportedFileType, import_file
 
     original_name = file.filename or "upload.txt"
     suffix = Path(original_name).suffix or ".txt"
@@ -147,5 +147,7 @@ async def web_upload(file: UploadFile = File(...)):
         try:
             ids = await import_file(tmp_path, _pipeline())
             return JSONResponse({"stored": len(ids), "filename": original_name, "chunks": len(ids)})
+        except UnsupportedFileType as e:
+            return JSONResponse({"stored": 0, "filename": original_name, "chunks": 0, "error": str(e)}, status_code=415)
         except Exception as e:
-            return JSONResponse({"stored": 0, "filename": original_name, "chunks": 0, "error": str(e)})
+            return JSONResponse({"stored": 0, "filename": original_name, "chunks": 0, "error": str(e)}, status_code=500)
