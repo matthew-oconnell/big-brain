@@ -5,7 +5,7 @@ import tomllib
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -13,6 +13,12 @@ class StorageConfig(BaseModel):
     data_dir: Path = Path.home() / ".local" / "share" / "bigbrain"
     blob_provider: Literal["local", "s3", "r2", "b2"] = "local"
     # Provider-specific options live under [storage.blob.*] in the toml
+
+    @field_validator("data_dir", mode="before")
+    @classmethod
+    def expand_home(cls, v: object) -> Path:
+        # Path("~/.local/...") does NOT expand ~ — must call expanduser()
+        return Path(str(v)).expanduser()
 
 
 class LLMConfig(BaseModel):

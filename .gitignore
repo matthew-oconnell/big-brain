@@ -17,6 +17,8 @@ env/
 # Data directories (never commit your brain)
 .bb/
 ~/.bb/
+# Catch un-expanded tilde paths (data_dir bug guard)
+~/
 
 # Secrets and keys
 *.key
