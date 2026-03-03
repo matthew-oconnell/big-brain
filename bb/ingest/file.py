@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import base64
 import mimetypes
 import socket
 from pathlib import Path
+
+import httpx
 
 from bb.core.chunk import Chunk, ContentType
 from bb.ingest.pipeline import IngestPipeline
@@ -22,6 +25,14 @@ _TEXT_SUFFIXES = {
     ".xml", ".svg",
 }
 
+_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff", ".tif"}
+
+_IMAGE_PROMPT = (
+    "Describe this image in detail for a personal knowledge base. "
+    "Include any visible text, people, objects, colors, setting, and context. "
+    "Be specific and thorough so the description is useful for semantic search."
+)
+
 
 def is_text_file(path: Path) -> bool:
     """Return True if the file can be meaningfully indexed as text."""
@@ -31,6 +42,13 @@ def is_text_file(path: Path) -> bool:
     if mime and mime.startswith("text/"):
         return True
     return False
+
+
+def is_image_file(path: Path) -> bool:
+    if path.suffix.lower() in _IMAGE_SUFFIXES:
+        return True
+    mime, _ = mimetypes.guess_type(str(path))
+    return bool(mime and mime.startswith("image/"))
 
 
 def detect_content_type(path: Path) -> ContentType:
@@ -44,10 +62,30 @@ class UnsupportedFileType(ValueError):
     pass
 
 
+def describe_image(path: Path, base_url: str, model: str) -> str:
+    """Call llava via Ollama to get a text description of an image."""
+    image_b64 = base64.b64encode(path.read_bytes()).decode()
+    try:
+        resp = httpx.post(
+            f"{base_url}/api/generate",
+            json={"model": model, "prompt": _IMAGE_PROMPT, "images": [image_b64], "stream": False},
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        return resp.json()["response"].strip()
+    except httpx.ConnectError:
+        raise RuntimeError(
+            f"Cannot describe image '{path.name}': Ollama is not running at {base_url}. "
+            "Start Ollama first."
+        )
+
+
 async def import_file(path: Path, pipeline: IngestPipeline, tags: list[str] | None = None) -> list[str]:
     """
-    Import a single text file into the brain.
-    Raises UnsupportedFileType for images, binaries, etc.
+    Import a single file into the brain.
+    - Text files are chunked and embedded directly.
+    - Image files are described by llava and the description is indexed.
+    - Other binary files raise UnsupportedFileType.
     Returns list of stored chunk IDs.
     """
     path = path.resolve()
@@ -56,10 +94,26 @@ async def import_file(path: Path, pipeline: IngestPipeline, tags: list[str] | No
     if not path.is_file():
         raise ValueError(f"{path} is not a file")
 
+    if is_image_file(path):
+        cfg = pipeline._settings.llm
+        base_url = cfg.base_url or "http://localhost:11434"
+        description = describe_image(path, base_url, cfg.ollama_vision_model)
+        if not description:
+            return []
+        chunk = Chunk(
+            content=description,
+            content_type=ContentType.IMAGE,
+            source_node=socket.gethostname(),
+            origin_path=str(path),
+            tags=tags or [],
+            key_path="personal",
+        )
+        return await pipeline.ingest(chunk)
+
     if not is_text_file(path):
         raise UnsupportedFileType(
-            f"'{path.name}' is not a supported text file type. "
-            "big-brain indexes text — images, PDFs, and binaries are not supported yet."
+            f"'{path.name}' is not a supported file type. "
+            "big-brain indexes text files and images (jpg, png, gif, webp)."
         )
 
     content = path.read_text(errors="replace")

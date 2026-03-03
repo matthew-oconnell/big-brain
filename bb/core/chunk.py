@@ -16,6 +16,7 @@ class ContentType(StrEnum):
     CHAT_VSCODE = "chat_vscode"
     EMAIL = "email"
     NOTE = "note"
+    IMAGE = "image"
 
 
 class Chunk(BaseModel):

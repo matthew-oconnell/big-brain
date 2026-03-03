@@ -27,6 +27,7 @@ class LLMConfig(BaseModel):
     # Ollama default: Qwen3 MoE — 30B capacity, ~3B inference cost
     model: str = "claude-haiku-4-5-20251001"
     ollama_model: str = "alibayram/Qwen3-30B-A3B-Instruct-2507:latest"
+    ollama_vision_model: str = "llava:7b"
     base_url: str | None = None  # for ollama, defaults to http://localhost:11434
 
 

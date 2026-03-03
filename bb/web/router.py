@@ -24,6 +24,7 @@ TYPE_COLORS: dict[str, str] = {
     "chat_vscode": "#58a6ff",  # blue
     "email":       "#ff7b72",  # red
     "note":        "#56d364",  # light green
+    "image":       "#e879f9",  # fuchsia
 }
 
 
