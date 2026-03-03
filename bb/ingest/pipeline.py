@@ -124,7 +124,7 @@ class IngestPipeline:
     def search(self, query: str, limit: int = 10, content_types: list[str] | None = None) -> list[dict]:
         """Embed query and return ranked results with full content."""
         [embedding] = embed([query])
-        results = self._vector.search_with_filter(embedding, content_types, limit)
+        results = self._vector.search_with_filter(embedding, query, content_types, limit)
         # Enrich results with full content from metadata store
         enriched = []
         for r in results:

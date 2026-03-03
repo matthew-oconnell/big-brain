@@ -170,7 +170,8 @@ async def search(
             id=r["id"],
             content_type=r["content_type"],
             timestamp=r.get("timestamp", ""),
-            score=max(0.0, 1.0 - r.get("_distance", 0.0) / 2.0),
+            score=float(r["_relevance_score"]) if "_relevance_score" in r
+                  else max(0.0, 1.0 - r.get("_distance", 0.0) / 2.0),
             content=r.get("content", ""),
             activity_summary=r.get("activity_summary"),
             working_directory=r.get("working_directory"),
