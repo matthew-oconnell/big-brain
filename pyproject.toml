@@ -1,0 +1,64 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "big-brain"
+version = "0.1.0"
+description = "A federated personal knowledge system with semantic search"
+requires-python = ">=3.11"
+dependencies = [
+    # API & CLI
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "typer>=0.15.0",
+    "rich>=13.0.0",
+    "httpx>=0.28.0",
+    # Storage
+    "lancedb>=0.16.0",
+    "sqlmodel>=0.0.22",
+    "aiofiles>=24.0.0",
+    # Embeddings
+    "fastembed>=0.4.0",
+    # Config & models
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+    # File watching
+    "watchdog>=6.0.0",
+    # Crypto (M5)
+    "cryptography>=43.0.0",
+    # LLM clients (optional at runtime, required at install)
+    "anthropic>=0.40.0",
+    # MCP server (M4)
+    "mcp>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.25.0",
+    "ruff>=0.9.0",
+    "mypy>=1.14.0",
+]
+
+[project.scripts]
+bb = "bb.cli.main:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["bb"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
