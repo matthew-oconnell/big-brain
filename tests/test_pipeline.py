@@ -60,7 +60,11 @@ async def test_terminal_noise_skipped(pipeline):
 
 @pytest.mark.asyncio
 async def test_long_content_chunked(pipeline):
-    long_text = ("This is a paragraph about CFD simulations. " * 20 + "\n\n") * 5
+    # Use distinct paragraphs so dedup doesn't collapse them into one stored chunk.
+    long_text = "\n\n".join(
+        f"Paragraph {i} about CFD simulations and fluid dynamics. " * 20
+        for i in range(5)
+    )
     chunk = make_chunk(long_text, ContentType.FILE)
     ids = await pipeline.ingest(chunk)
     assert len(ids) > 1  # should have been split
