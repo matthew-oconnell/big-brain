@@ -5,7 +5,7 @@ import tomllib
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_settings import BaseSettings
 
 
@@ -61,5 +61,3 @@ class Settings(BaseSettings):
         (self.storage.data_dir / "vectors").mkdir(exist_ok=True)
 
 
-# Needed because pydantic-settings doesn't import Field by default here
-from pydantic import Field  # noqa: E402
