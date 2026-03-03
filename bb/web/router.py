@@ -33,6 +33,26 @@ def _pipeline():
     return get_pipeline()
 
 
+def _get_preview(content: str, activity_summary: str | None) -> str:
+    """Determine whether to show content or summary based on content length.
+    
+    If content is short (< ~1 line), show just the content.
+    Otherwise, show activity_summary if available, else content preview.
+    """
+    content_clean = content.strip()
+    
+    # If content is short, just show it as-is (remove newlines)
+    if len(content_clean) < 120:
+        return content_clean.replace("\n", " ")
+    
+    # For longer content, show summary if available
+    if activity_summary:
+        return activity_summary.replace("\n", " ")
+    
+    # Otherwise show first 250 chars
+    return content_clean[:250].replace("\n", " ")
+
+
 def _enrich_records(raw: list[dict]) -> list[dict]:
     """Fetch full content for a list of vector results."""
     pipeline = _pipeline()
@@ -45,7 +65,7 @@ def _enrich_records(raw: list[dict]) -> list[dict]:
             
         record = pipeline._meta.get(vid)
         if record:
-            preview = (record.activity_summary or record.content[:250]).replace("\n", " ")
+            preview = _get_preview(record.content, record.activity_summary)
             out.append({
                 "id": vid,
                 "content_type": r.get("content_type") or record.content_type,
@@ -93,7 +113,7 @@ async def web_search(request: Request, q: str = ""):
     raw = pipeline.search(q.strip(), limit=15)
     results = []
     for r in raw:
-        preview = (r.get("activity_summary") or r.get("content", "")[:250]).replace("\n", " ")
+        preview = _get_preview(r.get("content", ""), r.get("activity_summary"))
         results.append({
             "id": r["id"],
             "content_type": r["content_type"],
