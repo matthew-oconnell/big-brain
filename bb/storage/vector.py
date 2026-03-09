@@ -24,6 +24,7 @@ SCHEMA = pa.schema(
         pa.field("activity_summary", pa.string()),
         pa.field("origin_path", pa.string()),
         pa.field("content_hash", pa.string()),
+        pa.field("text", pa.string()),  # chunk content — used for BM25/FTS index
         pa.field("vector", pa.list_(pa.float32(), 768)),  # nomic-embed-text dims
     ]
 )
@@ -36,12 +37,20 @@ class VectorStore:
         self._db = lancedb.connect(str(data_dir / "vectors"))
         self._table: lancedb.table.Table | None = None
 
+    def _ensure_fts_index(self) -> None:
+        """Create a BM25 full-text index on the text column (once per process)."""
+        try:
+            self._table.create_fts_index("text")
+        except Exception:
+            pass  # Already exists, or text column absent on pre-upgrade data
+
     def _get_table(self) -> lancedb.table.Table:
         if self._table is None:
             if TABLE_NAME in self._db.table_names():
                 self._table = self._db.open_table(TABLE_NAME)
             else:
                 self._table = self._db.create_table(TABLE_NAME, schema=SCHEMA)
+            self._ensure_fts_index()
         return self._table
 
     def add(self, chunk: "Chunk", embedding: list[float]) -> None:
@@ -56,6 +65,7 @@ class VectorStore:
             "activity_summary": chunk.activity_summary or "",
             "origin_path": chunk.origin_path or "",
             "content_hash": chunk.content_hash,
+            "text": chunk.content,
             "vector": embedding,
         }
         self._get_table().add([row])
@@ -72,14 +82,32 @@ class VectorStore:
     def search_with_filter(
         self,
         embedding: list[float],
+        query_text: str = "",
         content_types: list[str] | None = None,
         limit: int = 10,
     ) -> list[dict]:
-        query = self._get_table().search(embedding).metric("cosine").limit(limit)
-        if content_types:
-            types_str = ", ".join(f"'{t}'" for t in content_types)
-            query = query.where(f"content_type IN ({types_str})")
-        return query.to_list()
+        table = self._get_table()
+        types_filter = (
+            "content_type IN (" + ", ".join(f"'{t}'" for t in content_types) + ")"
+            if content_types else None
+        )
+        if query_text:
+            try:
+                q = (
+                    table.search(query_type="hybrid")
+                    .vector(embedding)
+                    .text(query_text)
+                    .limit(limit)
+                )
+                if types_filter:
+                    q = q.where(types_filter)
+                return q.to_list()
+            except Exception:
+                pass  # No FTS index or text column yet — fall through to vector-only
+        q = table.search(embedding).metric("cosine").limit(limit)
+        if types_filter:
+            q = q.where(types_filter)
+        return q.to_list()
 
     def hash_exists(self, content_hash: str) -> bool:
         results = (

@@ -101,9 +101,9 @@ CFD input files (JSON), Claude/VSCode chat logs, journal entries.
 |---|------|--------|-----------|
 | M0 | Core pipeline — embed, store, search | ✅ Done | `core/`, `storage/`, `ingest/pipeline.py` |
 | M1 | Daemon + shell hook + file watcher | ✅ Done | `api/daemon.py`, `shell/`, `ingest/watcher.py` |
-| M2 | Chat importers — Claude Code, VSCode | ⬜ Next | `ingest/chat/` |
-| M3 | Web UI — search + capture in browser | ⬜ Planned | `bb/web/` (create) |
-| M4 | MCP server — query from Claude | ⬜ Planned | `bb/api/mcp.py` (create) |
+| M2 | Chat importers — Claude Code, VSCode | ✅ Done | `ingest/chat/` |
+| M3 | Web UI — search + capture in browser | ✅ Done | `bb/web/` |
+| M4 | MCP server — query from Claude | ✅ Done | `bb/api/mcp.py` |
 | M5 | Encryption — Argon2 + HKDF key tree | ⬜ Planned | `bb/core/crypto.py` (create) |
 | M6 | Cloud sync — provider-agnostic blobs | ⬜ Planned | `bb/sync/` (create), `bb/storage/blob/<provider>.py` |
 | M7 | Federation — node-to-node sharing | ⬜ Planned | `bb/sync/federation.py` (create) |
@@ -199,13 +199,51 @@ Share token = derived key at a given path level. Recipient can decrypt everythin
 ## Running Tests
 
 ```bash
-pytest tests/          # run all tests
-pytest tests/ -x       # stop on first failure
-pytest tests/ -v       # verbose
+# Install dev dependencies first (only needed once)
+~/.local/share/bigbrain/venv/bin/pip install -e ".[dev]"
+
+# Run all tests
+pytest tests/
+
+# Common flags
+pytest tests/ -x          # stop on first failure
+pytest tests/ -v          # verbose output
+pytest tests/ -k chunker  # run tests matching a keyword
+pytest tests/ --tb=short  # shorter tracebacks
+
+# Run a specific file
+pytest tests/test_chunker.py
+pytest tests/test_api.py -v
 ```
 
-Tests use `tmp_path` fixtures and never touch real user data directories.
-Add a test for each new importer, at minimum a smoke test that it ingests and is searchable.
+### Test files and what they cover
+
+| File | What it tests |
+|---|---|
+| `tests/test_pipeline.py` | Core ingest pipeline: ingest+search, dedup, noise filtering, chunking |
+| `tests/test_chunker.py` | `chunk_text()` and `_split_sentences()`: empty input, short text, paragraph splits, sentence splits with overlap |
+| `tests/test_storage.py` | `LocalBlobStore`: put/get/delete/exists/list; `MetaStore`: save/get/update_context/by_date/since/today |
+| `tests/test_chat_importers.py` | `_parse_text_content()`, `_iter_messages()`, `import_claude_code()`, VSCode helpers, `import_vscode()` — with synthetic fixture data |
+| `tests/test_file_ingest.py` | `is_text_file()`, `is_image_file()`, `import_file()`: text, empty, unsupported type, missing file, origin_path override, tags |
+| `tests/test_api.py` | FastAPI endpoints: `/health`, `/ingest/thought`, `/ingest/terminal`, `/search`, `/recent`, `/by_date`, `/since`, `/digest` |
+| `tests/test_mcp_tools.py` | MCP tool functions: `search_brain`, `add_thought`, `get_recent_context`, `get_by_date`, `get_stats` — with mocked `_get`/`_post` |
+
+### Test conventions
+
+- All tests use `tmp_path` (pytest fixture) for storage — never touch real user data.
+- `tests/conftest.py` provides shared `pipeline`, `settings`, `make_chunk()` helpers.
+- Async tests use `@pytest.mark.asyncio` (configured globally via `asyncio_mode = "auto"` in `pyproject.toml`).
+- API tests bypass the lifespan by injecting `_pipeline` directly into `bb.api.daemon`.
+- MCP tool tests mock `bb.api.mcp._get` and `bb.api.mcp._post` — no daemon required.
+- Image import tests expect `RuntimeError` when Ollama is not running (correct behaviour).
+
+### Adding tests for new features
+
+1. **New importer**: add `test_import_<name>_basic()` and `test_import_<name>_idempotent()` in `tests/test_chat_importers.py` or a new file.
+2. **New API endpoint**: add it to `tests/test_api.py`. Use the `client` fixture which injects a real pipeline.
+3. **New MCP tool**: add unit tests in `tests/test_mcp_tools.py` with mocked `_get`/`_post`.
+4. **New storage method**: add it to `tests/test_storage.py`.
+5. **New content type or detection logic**: add it to `tests/test_file_ingest.py`.
 
 ---
 
